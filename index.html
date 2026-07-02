@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wheeler Pediatric Dentistry — Practice Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:       #f5f4f0;
+    --surface:  #ffffff;
+    --surface2: #f0efe9;
+    --border:   rgba(0,0,0,0.10);
+    --text:     #0b0b0b;
+    --muted:    #73726c;
+    --hint:     #a09f99;
+    --blue:     #2a78d6;
+    --green:    #1baf7a;
+    --amber:    #eda100;
+    --red:      #e34948;
+    --radius:   8px;
+    --shadow:   0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:      #111110;
+      --surface: #1c1c1b;
+      --surface2:#242422;
+      --border:  rgba(255,255,255,0.10);
+      --text:    #f0efe9;
+      --muted:   #a09f99;
+      --hint:    #73726c;
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+  h1 { font-size: 20px; font-weight: 500; }
+  h2 { font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: var(--hint); margin: 1.25rem 0 .6rem; }
+
+  /* ── Layout ── */
+  header { padding: 18px 24px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--surface); }
+  header .subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  main { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+  .status { font-size: 12px; color: var(--hint); display: flex; align-items: center; gap: 6px; }
+  .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+  .status .dot.loading { background: var(--amber); animation: pulse 1s infinite; }
+  .status .dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ── Nav tabs ── */
+  .nav { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .nav button { background: none; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 6px 14px; cursor: pointer; font-size: 13px; color: var(--muted); transition: background .12s; }
+  .nav button:hover { background: var(--surface2); }
+  .nav button.active { background: var(--surface); color: var(--text); font-weight: 500; border-color: rgba(0,0,0,0.25); }
+
+  /* ── Sub-tabs ── */
+  .sub-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: .75rem; }
+  .sub-tabs button { background: none; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 4px 11px; cursor: pointer; font-size: 12px; color: var(--muted); }
+  .sub-tabs button.active { background: var(--surface2); color: var(--text); font-weight: 500; }
+
+  /* ── KPI cards ── */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+  .kpi { background: var(--surface2); border-radius: var(--radius); padding: 12px 14px; }
+  .kpi-label { font-size: 11px; color: var(--hint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .kpi-val { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .kpi-delta { font-size: 12px; color: var(--hint); margin-top: 3px; }
+  .kpi-delta.up { color: #3B6D11; } .kpi-delta.dn { color: #A32D2D; } .kpi-delta.warn { color: #854F0B; }
+
+  /* ── Chart cards ── */
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* ── Two-col layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── Legend ── */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── Alert flags ── */
+  .flags { display: flex; flex-direction: column; gap: 8px; }
+  .flag { border: 0.5px solid var(--border); border-left: 3px solid var(--blue); border-radius: 0 var(--radius) var(--radius) 0; padding: 10px 14px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .flag.good { border-left-color: #3B6D11; background: rgba(59,109,17,.06); }
+  .flag.warn { border-left-color: #854F0B; background: rgba(133,79,11,.06); }
+  .flag.info { border-left-color: var(--blue); background: rgba(42,120,214,.06); }
+  .flag strong { color: var(--text); font-weight: 500; }
+
+  /* ── Page sections ── */
+  .page { display: none; } .page.active { display: block; }
+
+  /* ── Loading overlay ── */
+  #loading { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 100; }
+  #loading p { color: var(--muted); font-size: 14px; }
+  .spinner { width: 32px; height: 32px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #error-banner { display: none; background: rgba(227,73,72,.1); border: 0.5px solid var(--red); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: var(--red); }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>Loading practice data…</p>
+</div>
+
+<header>
+  <div>
+    <h1>Wheeler Pediatric Dentistry</h1>
+    <div class="subtitle">Practice Performance Dashboard</div>
+  </div>
+  <div class="status" id="status">
+    <div class="dot loading" id="status-dot"></div>
+    <span id="status-text">Connecting…</span>
+  </div>
+</header>
+
+<main>
+  <div id="error-banner"></div>
+
+  <nav class="nav" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+    <button class="active" onclick="showPage('trends')">Annual trends</button>
+    <button onclick="showPage('monthly')">Monthly detail</button>
+    <button onclick="showPage('efficiency')">Efficiency</button>
+    <button onclick="showPage('recare')">Recare</button>
+    <button onclick="showPage('scorecard')">Scorecard</button>
+      </div>
+    <button id="year-range-btn" onclick="toggleYearRange()" style="font-size:12px;padding:5px 12px;border:0.5px solid var(--border);border-radius:var(--radius);background:none;cursor:pointer;color:var(--muted);white-space:nowrap;">Show from 2022</button>
+  </nav>
+
+  <!-- ══ ANNUAL TRENDS ══ -->
+  <div id="page-trends" class="page active">
+    <div class="kpi-row" id="kpi-trends"></div>
+    <div class="card">
+      <h2>Gross production by year</h2>
+      <div class="legend"><span><i style="background:#2a78d6"></i>Woodlands</span><span><i style="background:#1baf7a"></i>Spring</span></div>
+      <div class="chart-wrap" style="height:240px"><canvas id="c-annual-gross" role="img" aria-label="Annual gross production by year">Annual gross production chart.</canvas></div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h2>Net production by year</h2>
+        <div class="legend"><span><i style="background:#2a78d6"></i>Woodlands</span><span><i style="background:#1baf7a"></i>Spring</span></div>
+        <div class="chart-wrap" style="height:200px"><canvas id="c-annual-net" role="img" aria-label="Annual net production">Annual net production.</canvas></div>
+      </div>
+      <div class="card">
+        <h2>Adjustment rate — payer mix signal</h2>
+        <div class="legend"><span><i style="background:#2a78d6"></i>Woodlands</span><span><i style="background:#1baf7a"></i>Spring</span></div>
+        <div class="chart-wrap" style="height:200px"><canvas id="c-annual-adj" role="img" aria-label="Annual adjustment rate">Adjustment rate by year.</canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MONTHLY DETAIL ══ -->
+  <div id="page-monthly" class="page">
+    <div class="sub-tabs" id="monthly-loc-tabs">
+      <button class="active" onclick="setMonthlyLoc('woodlands')">Woodlands</button>
+      <button onclick="setMonthlyLoc('spring')">Spring</button>
+    </div>
+    <div class="sub-tabs" id="monthly-year-tabs"></div>
+    <div class="kpi-row" id="kpi-monthly"></div>
+    <div class="card">
+      <h2>Monthly gross vs. net production</h2>
+      <div class="legend" id="monthly-legend"></div>
+      <div class="chart-wrap" style="height:230px"><canvas id="c-monthly-prod" role="img" aria-label="Monthly production">Monthly production.</canvas></div>
+    </div>
+    <div class="card">
+      <h2>Monthly collection rate</h2>
+      <div class="chart-wrap" style="height:180px"><canvas id="c-monthly-coll" role="img" aria-label="Monthly collection rate">Monthly collection rate.</canvas></div>
+    </div>
+  </div>
+
+  <!-- ══ EFFICIENCY ══ -->
+  <div id="page-efficiency" class="page">
+    <div class="kpi-row" id="kpi-efficiency"></div>
+    <div class="card">
+      <h2>Net production per hour — Woodlands long-run trend</h2>
+      <div class="chart-wrap" style="height:200px"><canvas id="c-eff-trend" role="img" aria-label="Woodlands net/hr trend">Net/hr trend.</canvas></div>
+    </div>
+    <div class="card">
+      <h2>Monthly net/hr — most recent full year, both locations</h2>
+      <div class="legend"><span><i style="background:#2a78d6"></i>Woodlands</span><span><i style="background:#1baf7a"></i>Spring</span></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="c-eff-monthly" role="img" aria-label="Monthly net/hr comparison">Monthly net/hr.</canvas></div>
+    </div>
+  </div>
+
+  <!-- ══ RECARE ══ -->
+  <div id="page-recare" class="page">
+    <div class="kpi-row" id="kpi-recare"></div>
+    <div class="card">
+      <h2>Annual average recare vs. 88% target</h2>
+      <div class="legend">
+        <span><i style="background:#2a78d6"></i>Woodlands</span>
+        <span><i style="background:#1baf7a"></i>Spring</span>
+        <span style="display:flex;align-items:center;gap:5px">
+          <svg width="18" height="10"><line x1="0" y1="5" x2="18" y2="5" stroke="#e34948" stroke-width="1.5" stroke-dasharray="4,3"/></svg>88% target
+        </span>
+      </div>
+      <div class="chart-wrap" style="height:220px"><canvas id="c-recare-annual" role="img" aria-label="Annual recare rate">Annual recare.</canvas></div>
+    </div>
+    <div class="card">
+      <h2>Monthly recare detail</h2>
+      <div class="sub-tabs" id="recare-loc-tabs">
+        <button class="active" onclick="setRecareLoc('woodlands')">Woodlands</button>
+        <button onclick="setRecareLoc('spring')">Spring</button>
+      </div>
+      <div class="sub-tabs" id="recare-year-tabs"></div>
+      <div class="kpi-row" id="kpi-recare-monthly"></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--muted)">
+        <svg width="18" height="10"><line x1="0" y1="5" x2="18" y2="5" stroke="#e34948" stroke-width="1.5" stroke-dasharray="4,3"/></svg>88% target
+      </div>
+      <div class="chart-wrap" style="height:230px"><canvas id="c-recare-monthly" role="img" aria-label="Monthly recare rate">Monthly recare.</canvas></div>
+    </div>
+  </div>
+
+  <!-- ══ SCORECARD ══ -->
+  <div id="page-scorecard" class="page">
+    <div class="two-col">
+      <div>
+        <h2>Woodlands — latest full year</h2>
+        <div class="kpi-row" id="kpi-scorecard-wood" style="grid-template-columns:1fr 1fr"></div>
+      </div>
+      <div>
+        <h2>Spring — latest full year</h2>
+        <div class="kpi-row" id="kpi-scorecard-spring" style="grid-template-columns:1fr 1fr"></div>
+      </div>
+    </div>
+    <h2 style="margin-top:1.5rem">Watch items</h2>
+    <div class="flags" id="flags"></div>
+  </div>
+</main>
+
+<script>
+// ── CONFIG — paste your deployed Apps Script URL here ──────────────────────
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwo-V9nfwFd141rlZV6OHxo42HVklq4IR0pKmg6jrwXcKS01ZuEp1qQdSy6BzN_b1VSIA/exec';
+// ───────────────────────────────────────────────────────────────────────────
+
+const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const TARGET_RECARE = 88;
+const W = '#2a78d6', S = '#1baf7a';
+const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+const tickColor = '#898781';
+
+let DATA = null;
+let monthlyLoc = 'woodlands', monthlyYear = null;
+let recareLoc = 'woodlands',  recareYear  = null;
+let chartRefs = {};
+
+// ── Fetch data ──────────────────────────────────────────────────────────────
+async function loadData() {
+  setStatus('loading', 'Fetching data…');
+  try {
+    const res = await fetch(APPS_SCRIPT_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    DATA = await res.json();
+    const updated = new Date(DATA.lastUpdated);
+    setStatus('ok', `Updated ${updated.toLocaleString()}`);
+    document.getElementById('loading').style.display = 'none';
+    buildAll();
+  } catch (err) {
+    setStatus('error', 'Could not load data');
+    document.getElementById('loading').style.display = 'none';
+    showError(`Could not reach the data source. Make sure the Apps Script is deployed and the URL is correct. (${err.message})`);
+  }
+}
+
+function setStatus(state, text) {
+  const dot = document.getElementById('status-dot');
+  dot.className = 'dot' + (state === 'loading' ? ' loading' : state === 'error' ? ' error' : '');
+  document.getElementById('status-text').textContent = text;
+}
+function showError(msg) {
+  const el = document.getElementById('error-banner');
+  el.style.display = 'block';
+  el.textContent = msg;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const DEFAULT_START_YEAR = '2022';
+
+function sortedYears(loc, fromDefault = false) {
+  const all = Object.keys(DATA[loc]).sort();
+  return fromDefault ? all.filter(y => y >= DEFAULT_START_YEAR) : all;
+}
+function visibleYears(loc) {
+  return sortedYears(loc, !showingAllYears);
+}
+function latestFullYear(loc) {
+  const yrs = sortedYears(loc).filter(y => {
+    const d = DATA[loc][y];
+    return d && Object.keys(d).filter(k => k !== '_annual').length >= 10;
+  });
+  return yrs[yrs.length - 1] || sortedYears(loc).slice(-1)[0];
+}
+let showingAllYears = true;
+function toggleYearRange() {
+  showingAllYears = !showingAllYears;
+  const btn = document.getElementById('year-range-btn');
+  btn.textContent = showingAllYears ? 'Show from 2022' : 'Show all years (2012+)';
+  buildTrends();
+  buildEfficiency();
+  buildRecare();
+}
+function fmtM(v) { return v == null ? '—' : v >= 1e6 ? '$' + (v/1e6).toFixed(2) + 'M' : '$' + Math.round(v/1000) + 'K'; }
+function fmtPct(v) { return v == null ? '—' : Math.round(v) + '%'; }
+function fmtHr(v) { return v == null ? '—' : '$' + Math.round(v).toLocaleString(); }
+function fmtDelta(v, prev, higherBetter = true) {
+  if (!prev || !v) return '';
+  const pct = ((v - prev) / prev * 100);
+  const up = pct >= 0;
+  const cls = (up === higherBetter) ? 'up' : 'dn';
+  return `<span class="kpi-delta ${cls}">${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}% vs prior year</span>`;
+}
+function kpiCard(label, val, delta = '') {
+  return `<div class="kpi"><div class="kpi-label">${label}</div><div class="kpi-val">${val}</div>${delta}</div>`;
+}
+function getMonthVals(loc, year, field) {
+  const d = DATA[loc][year];
+  if (!d) return Array(12).fill(null);
+  return MONTHS.map(m => d[m] ? (d[m][field] ?? null) : null);
+}
+function annualVal(loc, year, field) {
+  return DATA[loc][year]?._annual?.[field] ?? null;
+}
+
+// ── Target line plugin ───────────────────────────────────────────────────────
+function targetLinePlugin(yVal, color) {
+  return {
+    id: 'tl_' + yVal,
+    afterDraw(chart) {
+      const {ctx, chartArea: {left, right}, scales: {y}} = chart;
+      if (!y) return;
+      const yPx = y.getPixelForValue(yVal);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath(); ctx.moveTo(left, yPx); ctx.lineTo(right, yPx); ctx.stroke();
+      ctx.restore();
+    }
+  };
+}
+
+const baseOpts = (yFmt, extra = {}) => ({
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { ticks: { color: tickColor, font: { size: 11 }, autoSkip: false, maxRotation: 45 }, grid: { color: gridColor } },
+    y: { ticks: { color: tickColor, font: { size: 11 }, callback: v => yFmt(v) }, grid: { color: gridColor }, ...extra }
+  }
+});
+
+function destroyChart(id) {
+  if (chartRefs[id]) { chartRefs[id].destroy(); delete chartRefs[id]; }
+}
+function mkChart(id, config) {
+  destroyChart(id);
+  chartRefs[id] = new Chart(document.getElementById(id), config);
+}
+
+// ── Build all pages ──────────────────────────────────────────────────────────
+function buildAll() {
+  buildTrends();
+  buildEfficiency();
+  buildRecare();
+  buildScorecard();
+  // Monthly needs default year set
+  const avail = sortedYears('woodlands');
+  monthlyYear = latestFullYear('woodlands');
+  buildMonthlyYearTabs();
+  buildMonthly();
+  recareYear = latestFullYear('woodlands');
+  buildRecareYearTabs();
+  buildRecareMonthly();
+}
+
+// ── TRENDS ───────────────────────────────────────────────────────────────────
+function buildTrends() {
+  const wYears = visibleYears('woodlands');
+  const sYears = visibleYears('spring');
+  const allYears = [...new Set([...wYears, ...sYears])].sort();
+
+  const wGross = allYears.map(y => annualVal('woodlands', y, 'gross'));
+  const sGross = allYears.map(y => annualVal('spring', y, 'gross'));
+  const wNet   = allYears.map(y => annualVal('woodlands', y, 'net'));
+  const sNet   = allYears.map(y => annualVal('spring', y, 'net'));
+  const wAdj   = allYears.map(y => annualVal('woodlands', y, 'adjRate'));
+  const sAdj   = allYears.map(y => annualVal('spring', y, 'adjRate'));
+
+  // KPIs — compare two most recent full years
+  const wLast = latestFullYear('woodlands');
+  const wPrev = sortedYears('woodlands').slice(-2,-1)[0];
+  const sLast = latestFullYear('spring');
+  const sPrev = sortedYears('spring').slice(-2,-1)[0];
+  const wG = annualVal('woodlands', wLast, 'gross');
+  const wGp= annualVal('woodlands', wPrev, 'gross');
+  const sG = annualVal('spring', sLast, 'gross');
+  const sGp= annualVal('spring', sPrev, 'gross');
+  const wN = annualVal('woodlands', wLast, 'net');
+  const sN = annualVal('spring', sLast, 'net');
+
+  document.getElementById('kpi-trends').innerHTML =
+    kpiCard(`Woodlands gross (${wLast})`, fmtM(wG), fmtDelta(wG, wGp)) +
+    kpiCard(`Spring gross (${sLast})`, fmtM(sG), fmtDelta(sG, sGp)) +
+    kpiCard(`Woodlands net (${wLast})`, fmtM(wN)) +
+    kpiCard(`Spring net (${sLast})`, fmtM(sN)) +
+    kpiCard('Woodlands adj rate', fmtPct(annualVal('woodlands', wLast, 'adjRate')), '<span class="kpi-delta">PPO range</span>') +
+    kpiCard('Spring adj rate', fmtPct(annualVal('spring', sLast, 'adjRate')), '<span class="kpi-delta warn">Medicaid/CHIP mix</span>');
+
+  mkChart('c-annual-gross', {
+    type: 'bar',
+    data: { labels: allYears, datasets: [
+      { label: 'Woodlands', data: wGross, backgroundColor: W+'bb', borderColor: W, borderWidth: 1 },
+      { label: 'Spring',    data: sGross, backgroundColor: S+'bb', borderColor: S, borderWidth: 1 }
+    ]},
+    options: baseOpts(fmtM)
+  });
+  mkChart('c-annual-net', {
+    type: 'line',
+    data: { labels: allYears, datasets: [
+      { label: 'Woodlands', data: wNet, borderColor: W, backgroundColor: W+'22', pointRadius: 4, tension: .3, fill: false },
+      { label: 'Spring',    data: sNet, borderColor: S, backgroundColor: S+'22', pointRadius: 4, tension: .3, fill: false, borderDash: [5,3] }
+    ]},
+    options: baseOpts(fmtM, { min: 0 })
+  });
+  mkChart('c-annual-adj', {
+    type: 'line',
+    data: { labels: allYears, datasets: [
+      { label: 'Woodlands', data: wAdj, borderColor: W, backgroundColor: W+'22', pointRadius: 4, tension: .2, fill: false },
+      { label: 'Spring',    data: sAdj, borderColor: S, backgroundColor: S+'22', pointRadius: 4, tension: .2, fill: false, borderDash: [5,3] }
+    ]},
+    options: baseOpts(fmtPct, { min: 0, max: 65 })
+  });
+}
+
+// ── MONTHLY ──────────────────────────────────────────────────────────────────
+function buildMonthlyYearTabs() {
+  const yrs = sortedYears(monthlyLoc).reverse();
+  document.getElementById('monthly-year-tabs').innerHTML = yrs.map(y =>
+    `<button class="${y === monthlyYear ? 'active' : ''}" onclick="setMonthlyYear('${y}')">${y}</button>`
+  ).join('');
+}
+function setMonthlyLoc(loc) {
+  monthlyLoc = loc;
+  monthlyYear = latestFullYear(loc);
+  document.querySelectorAll('#monthly-loc-tabs button').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase() === loc));
+  buildMonthlyYearTabs();
+  buildMonthly();
+}
+function setMonthlyYear(yr) {
+  monthlyYear = yr;
+  document.querySelectorAll('#monthly-year-tabs button').forEach(b => b.classList.toggle('active', b.textContent === yr));
+  buildMonthly();
+}
+function buildMonthly() {
+  const lc = monthlyLoc === 'woodlands' ? W : S;
+  const gross  = getMonthVals(monthlyLoc, monthlyYear, 'gross');
+  const net    = getMonthVals(monthlyLoc, monthlyYear, 'net');
+  const coll   = getMonthVals(monthlyLoc, monthlyYear, 'collections');
+  const collPct= getMonthVals(monthlyLoc, monthlyYear, 'collRate');
+
+  const totG = gross.reduce((a,v)=>a+(v||0),0);
+  const totN = net.reduce((a,v)=>a+(v||0),0);
+  const totC = coll.reduce((a,v)=>a+(v||0),0);
+  const validCp = collPct.filter(Boolean);
+  const avgCp = validCp.length ? validCp.reduce((a,b)=>a+b,0)/validCp.length : 0;
+
+  document.getElementById('kpi-monthly').innerHTML =
+    kpiCard('YTD gross', fmtM(totG)) + kpiCard('YTD net', fmtM(totN)) +
+    kpiCard('YTD collections', fmtM(totC)) + kpiCard('Avg collection %', fmtPct(avgCp));
+
+  document.getElementById('monthly-legend').innerHTML =
+    `<span><i style="background:${lc}"></i>Gross</span><span><i style="background:${lc}55"></i>Net</span>`;
+
+  mkChart('c-monthly-prod', {
+    type: 'bar',
+    data: { labels: MONTH_LABELS, datasets: [
+      { label: 'Gross', data: gross, backgroundColor: lc+'99', borderColor: lc, borderWidth: 1 },
+      { label: 'Net',   data: net,   backgroundColor: lc+'44', borderColor: lc+'88', borderWidth: 1 }
+    ]},
+    options: baseOpts(fmtM)
+  });
+  mkChart('c-monthly-coll', {
+    type: 'line',
+    data: { labels: MONTH_LABELS, datasets: [{
+      label: 'Collection %', data: collPct,
+      borderColor: lc, backgroundColor: lc+'22', pointRadius: 5, tension: .2, fill: true
+    }]},
+    options: { ...baseOpts(fmtPct, { min: 60, max: 140 }), plugins: { legend: { display: false } } }
+  });
+}
+
+// ── EFFICIENCY ───────────────────────────────────────────────────────────────
+function buildEfficiency() {
+  const wYears = visibleYears('woodlands');
+  const wLast  = latestFullYear('woodlands');
+  const sLast  = latestFullYear('spring');
+
+  const wNpH = wYears.map(y => annualVal('woodlands', y, 'netPerHour'));
+  const wLastNpH = annualVal('woodlands', wLast, 'netPerHour');
+  const wPrevNpH = annualVal('woodlands', wYears.slice(-2,-1)[0], 'netPerHour');
+  const sLastNpH = annualVal('spring', sLast, 'netPerHour');
+
+  document.getElementById('kpi-efficiency').innerHTML =
+    kpiCard(`Woodlands net/hr (${wLast})`, fmtHr(wLastNpH), fmtDelta(wLastNpH, wPrevNpH)) +
+    kpiCard(`Spring net/hr (${sLast})`, fmtHr(sLastNpH), '<span class="kpi-delta warn">Target: $1,300+</span>') +
+    kpiCard('Gap (Spring vs Woodlands)', wLastNpH && sLastNpH ? Math.round((1 - sLastNpH/wLastNpH)*100) + '%' : '—', '<span class="kpi-delta">lower at Spring</span>') +
+    kpiCard(`Woodlands hrs (${wLast})`, annualVal('woodlands', wLast, 'hours')?.toLocaleString() ?? '—');
+
+  mkChart('c-eff-trend', {
+    type: 'line',
+    data: { labels: wYears, datasets: [{
+      label: 'Net/hr', data: wNpH, borderColor: W, backgroundColor: W+'22', pointRadius: 4, tension: .3, fill: true
+    }]},
+    options: baseOpts(fmtHr)
+  });
+
+  // Monthly net/hr for most recent full year
+  const wMonthly = getMonthVals('woodlands', wLast, 'netPerHour');
+  const sMonthly = getMonthVals('spring', sLast, 'netPerHour');
+  mkChart('c-eff-monthly', {
+    type: 'bar',
+    data: { labels: MONTH_LABELS, datasets: [
+      { label: 'Woodlands', data: wMonthly, backgroundColor: W+'bb', borderColor: W, borderWidth: 1 },
+      { label: 'Spring',    data: sMonthly, backgroundColor: S+'bb', borderColor: S, borderWidth: 1 }
+    ]},
+    options: baseOpts(fmtHr)
+  });
+}
+
+// ── RECARE ────────────────────────────────────────────────────────────────────
+function buildRecare() {
+  const wYears = visibleYears('woodlands').filter(y => DATA.woodlands[y]?._annual?.recareAvg);
+  const sYears = visibleYears('spring').filter(y => DATA.spring[y]?._annual?.recareAvg);
+  const allYears = [...new Set([...wYears, ...sYears])].sort();
+
+  const wAvg = allYears.map(y => annualVal('woodlands', y, 'recareAvg'));
+  const sAvg = allYears.map(y => annualVal('spring', y, 'recareAvg'));
+
+  const wLast = latestFullYear('woodlands');
+  const sLast = latestFullYear('spring');
+  const wR = annualVal('woodlands', wLast, 'recareAvg');
+  const sR = annualVal('spring', sLast, 'recareAvg');
+
+  document.getElementById('kpi-recare').innerHTML =
+    kpiCard(`Woodlands avg (${wLast})`, fmtPct(wR),
+      wR >= TARGET_RECARE ? '<span class="kpi-delta up">▲ at target</span>' : `<span class="kpi-delta warn">▼ ${(TARGET_RECARE - wR).toFixed(1)}pts below target</span>`) +
+    kpiCard(`Spring avg (${sLast})`, fmtPct(sR),
+      sR >= TARGET_RECARE ? '<span class="kpi-delta up">▲ at target</span>' : `<span class="kpi-delta warn">▼ ${(TARGET_RECARE - sR).toFixed(1)}pts below target</span>`) +
+    kpiCard('Target', '88%', '<span class="kpi-delta">both locations</span>');
+
+  mkChart('c-recare-annual', {
+    type: 'bar',
+    data: { labels: allYears, datasets: [
+      { label: 'Woodlands', data: wAvg, backgroundColor: wAvg.map(v => v >= TARGET_RECARE ? W+'bb' : W+'55'), borderColor: W, borderWidth: 1 },
+      { label: 'Spring',    data: sAvg, backgroundColor: sAvg.map(v => v >= TARGET_RECARE ? S+'bb' : S+'44'), borderColor: S, borderWidth: 1 }
+    ]},
+    plugins: [targetLinePlugin(TARGET_RECARE, '#e34948')],
+    options: baseOpts(fmtPct, { min: 50, max: 115 })
+  });
+}
+
+function buildRecareYearTabs() {
+  const yrs = sortedYears(recareLoc).reverse();
+  document.getElementById('recare-year-tabs').innerHTML = yrs.map(y =>
+    `<button class="${y === recareYear ? 'active' : ''}" onclick="setRecareYear('${y}')">${y}</button>`
+  ).join('');
+}
+function setRecareLoc(loc) {
+  recareLoc = loc;
+  recareYear = latestFullYear(loc);
+  document.querySelectorAll('#recare-loc-tabs button').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase() === loc));
+  buildRecareYearTabs();
+  buildRecareMonthly();
+}
+function setRecareYear(yr) {
+  recareYear = yr;
+  document.querySelectorAll('#recare-year-tabs button').forEach(b => b.classList.toggle('active', b.textContent === yr));
+  buildRecareMonthly();
+}
+function buildRecareMonthly() {
+  const lc = recareLoc === 'woodlands' ? W : S;
+  const vals = getMonthVals(recareLoc, recareYear, 'recare');
+  const valid = vals.filter(v => v !== null && v > 0);
+  const avg = valid.length ? valid.reduce((a,b)=>a+b,0)/valid.length : 0;
+  const mn  = valid.length ? Math.min(...valid) : 0;
+  const mx  = valid.length ? Math.max(...valid) : 0;
+  const belowTarget = valid.filter(v => v < TARGET_RECARE).length;
+
+  document.getElementById('kpi-recare-monthly').innerHTML =
+    kpiCard('Average', fmtPct(avg),
+      avg >= TARGET_RECARE ? '<span class="kpi-delta up">▲ at target</span>' : `<span class="kpi-delta warn">▼ ${(TARGET_RECARE-avg).toFixed(1)}pts below</span>`) +
+    kpiCard('Low month', fmtPct(mn)) +
+    kpiCard('High month', fmtPct(mx)) +
+    kpiCard('Months below 88%', belowTarget, belowTarget > 3 ? '<span class="kpi-delta dn">needs attention</span>' : '');
+
+  const colors = vals.map(v =>
+    v === null ? 'transparent' : v < 70 ? '#e34948bb' : v < TARGET_RECARE ? '#eda10099' : lc+'bb'
+  );
+
+  mkChart('c-recare-monthly', {
+    type: 'bar',
+    data: { labels: MONTH_LABELS, datasets: [{
+      label: 'Recare %', data: vals, backgroundColor: colors, borderColor: colors.map(c => c === 'transparent' ? c : c.slice(0,-2)), borderWidth: 1
+    }]},
+    plugins: [targetLinePlugin(TARGET_RECARE, '#e34948')],
+    options: { ...baseOpts(fmtPct, { min: 0, max: 120 }), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y == null ? '' : ctx.parsed.y.toFixed(1) + '%' } } } }
+  });
+}
+
+// ── SCORECARD ────────────────────────────────────────────────────────────────
+function buildScorecard() {
+  const wLast = latestFullYear('woodlands');
+  const sLast = latestFullYear('spring');
+  const wPrev = sortedYears('woodlands').slice(-2,-1)[0];
+  const sPrev = sortedYears('spring').slice(-2,-1)[0];
+
+  const mk = (loc, yr, prevYr) => {
+    const a = y => annualVal(loc, yr, y);
+    const p = y => annualVal(loc, prevYr, y);
+    return kpiCard('Gross', fmtM(a('gross')), fmtDelta(a('gross'), p('gross'))) +
+      kpiCard('Net', fmtM(a('net')), fmtDelta(a('net'), p('net'))) +
+      kpiCard('Collections', fmtM(a('collections')), fmtDelta(a('collections'), p('collections'))) +
+      kpiCard('Collection %', fmtPct(a('collRate')),
+        a('collRate') >= 100 ? '<span class="kpi-delta up">Healthy</span>' : '<span class="kpi-delta dn">Below 100%</span>') +
+      kpiCard('Adj rate', fmtPct(a('adjRate'))) +
+      kpiCard('Net/hr', fmtHr(a('netPerHour')), fmtDelta(a('netPerHour'), p('netPerHour'))) +
+      kpiCard('Recare avg', fmtPct(a('recareAvg')),
+        (a('recareAvg') ?? 0) >= 88 ? '<span class="kpi-delta up">At target</span>' : '<span class="kpi-delta warn">Below 88% target</span>') +
+      kpiCard('Hours', a('hours')?.toLocaleString() ?? '—');
+  };
+
+  document.getElementById('kpi-scorecard-wood').innerHTML   = mk('woodlands', wLast, wPrev);
+  document.getElementById('kpi-scorecard-spring').innerHTML = mk('spring', sLast, sPrev);
+
+  // Dynamic flags
+  const wR = annualVal('woodlands', wLast, 'collRate');
+  const sR = annualVal('spring', sLast, 'collRate');
+  const wRec = annualVal('woodlands', wLast, 'recareAvg');
+  const sRec = annualVal('spring', sLast, 'recareAvg');
+  const wNpH = annualVal('woodlands', wLast, 'netPerHour');
+  const sNpH = annualVal('spring', sLast, 'netPerHour');
+  const wG  = annualVal('woodlands', wLast, 'gross');
+  const wGp = annualVal('woodlands', wPrev, 'gross');
+
+  const flags = [];
+  if (wR >= 100 && sR >= 100) flags.push({ type:'good', msg:`<strong>Collections healthy at both locations:</strong> Woodlands at ${fmtPct(wR)} and Spring at ${fmtPct(sR)} — both collecting above 100% of net, indicating old AR is being captured.` });
+  if ((wRec ?? 0) < 88) flags.push({ type:'warn', msg:`<strong>Woodlands recare below 88% target:</strong> ${fmtPct(wRec)} annual average in ${wLast}. Each missed recall slot is a production gap and a patient care gap.` });
+  if ((sRec ?? 0) < 88) flags.push({ type:'warn', msg:`<strong>Spring recare below 88% target:</strong> ${fmtPct(sRec)} annual average in ${sLast}. Review recall scheduling consistency month-by-month in the Recare tab.` });
+  if (sNpH && sNpH < 1300) flags.push({ type:'warn', msg:`<strong>Spring net/hr below $1,300 target:</strong> Currently at ${fmtHr(sNpH)}. Improving scheduling density and payer mix will close the gap over time.` });
+  if (wG && wGp && wG < wGp) flags.push({ type:'info', msg:`<strong>Woodlands production declining from peak:</strong> ${fmtM(wG)} in ${wLast} vs ${fmtM(wGp)} in ${wPrev}. Worth reviewing whether this reflects reduced hours, patient volume softness, or intentional scheduling changes.` });
+
+  document.getElementById('flags').innerHTML = flags.map(f =>
+    `<div class="flag ${f.type}">${f.msg}</div>`
+  ).join('') || '<div class="flag info">No significant flags — all metrics within normal range.</div>';
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav button').forEach((b, i) => {
+    b.classList.toggle('active', ['trends','monthly','efficiency','recare','scorecard'][i] === name);
+  });
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+if (false) {
+  document.getElementById('loading').style.display = 'none';
+  showError('Set up not complete: open this file in a text editor and paste your Apps Script URL into the APPS_SCRIPT_URL variable at the top of the script.');
+} else {
+  loadData();
+}
+</script>
+</body>
+</html>
