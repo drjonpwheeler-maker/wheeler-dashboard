@@ -176,8 +176,9 @@
   <div id="page-efficiency" class="page">
     <div class="kpi-row" id="kpi-efficiency"></div>
     <div class="card">
-      <h2>Net production per hour — Woodlands long-run trend</h2>
-      <div class="chart-wrap" style="height:200px"><canvas id="c-eff-trend" role="img" aria-label="Woodlands net/hr trend">Net/hr trend.</canvas></div>
+      <h2>Net production per hour — long-run trend, both locations</h2>
+      <div class="legend"><span><i style="background:#2a78d6"></i>Woodlands</span><span><i style="background:#1baf7a"></i>Spring</span></div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c-eff-trend" role="img" aria-label="Net production per hour trend, Woodlands and Spring">Net/hr trend.</canvas></div>
     </div>
     <div class="card">
       <h2>Monthly net/hr — most recent full year, both locations</h2>
@@ -511,11 +512,16 @@ function buildEfficiency() {
     kpiCard('Gap (Spring vs Woodlands)', wLastNpH && sLastNpH ? Math.round((1 - sLastNpH/wLastNpH)*100) + '%' : '—', '<span class="kpi-delta">lower at Spring</span>') +
     kpiCard(`Woodlands hrs (${wLast})`, annualVal('woodlands', wLast, 'hours')?.toLocaleString() ?? '—');
 
+  const allEffYears = [...new Set([...visibleYears('woodlands'), ...visibleYears('spring')])].sort();
+  const sNpHAnnual  = allEffYears.map(y => annualVal('spring', y, 'netPerHour'));
+  const wNpHAnnual  = allEffYears.map(y => annualVal('woodlands', y, 'netPerHour'));
+
   mkChart('c-eff-trend', {
     type: 'line',
-    data: { labels: wYears, datasets: [{
-      label: 'Net/hr', data: wNpH, borderColor: W, backgroundColor: W+'22', pointRadius: 4, tension: .3, fill: true
-    }]},
+    data: { labels: allEffYears, datasets: [
+      { label: 'Woodlands', data: wNpHAnnual, borderColor: W, backgroundColor: W+'22', pointRadius: 4, tension: .3, fill: false },
+      { label: 'Spring',    data: sNpHAnnual, borderColor: S, backgroundColor: S+'22', pointRadius: 4, tension: .3, fill: false, borderDash: [5,3] }
+    ]},
     options: baseOpts(fmtHr)
   });
 
