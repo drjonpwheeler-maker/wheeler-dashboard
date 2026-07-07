@@ -97,10 +97,51 @@
   .spinner { width: 32px; height: 32px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   #error-banner { display: none; background: rgba(227,73,72,.1); border: 0.5px solid var(--red); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: var(--red); }
+
+  /* ── Password screen ── */
+  #password-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+  .pw-box {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 12px; padding: 36px 40px; width: 320px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+    display: flex; flex-direction: column; gap: 14px; align-items: center;
+  }
+  .pw-logo { font-size: 20px; font-weight: 500; color: var(--text); }
+  .pw-logo span { color: #2a78d6; }
+  .pw-box h2 { font-size: 16px; font-weight: 500; margin: 0; color: var(--text); }
+  .pw-box p { font-size: 13px; color: var(--muted); margin: 0; text-align: center; }
+  .pw-input {
+    width: 100%; padding: 10px 14px; font-size: 15px; text-align: center;
+    border: 0.5px solid var(--border); border-radius: var(--radius);
+    background: var(--surface2); color: var(--text); outline: none; letter-spacing: 0.08em;
+  }
+  .pw-input:focus { border-color: #2a78d6; }
+  .pw-btn {
+    width: 100%; padding: 10px; font-size: 14px; font-weight: 500;
+    background: #2a78d6; color: #fff; border: none;
+    border-radius: var(--radius); cursor: pointer;
+  }
+  .pw-btn:hover { opacity: 0.88; }
+  .pw-error { font-size: 12px; color: #e34948; min-height: 16px; margin: 0; }
 </style>
 </head>
 <body>
 
+<div id="pw-screen" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000">
+  <div class="pw-box">
+    <div class="pw-logo">Wheeler <span>Pediatric</span></div>
+    <h2>Practice Dashboard</h2>
+    <p>Enter your password to continue</p>
+    <input id="pw-input" class="pw-input" type="password" placeholder="Password"
+      onkeydown="if(event.key==='Enter')checkPw()" />
+    <button class="pw-btn" onclick="checkPw()">Access Dashboard</button>
+    <p class="pw-error" id="pw-error"></p>
+  </div>
+</div>
 <div id="loading">
   <div class="spinner"></div>
   <p>Loading practice data…</p>
@@ -674,12 +715,26 @@ function showPage(name) {
   });
 }
 
+
+// ── Password ──────────────────────────────────────────────────────────────────
+const PW = 'Wheeler2024!';
+function checkPw() {
+  if (document.getElementById('pw-input').value === PW) {
+    document.getElementById('pw-screen').style.display = 'none';
+    loadData();
+  } else {
+    document.getElementById('pw-error').textContent = 'Incorrect password.';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+  }
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 if (false) {
   document.getElementById('loading').style.display = 'none';
   showError('Set up not complete: open this file in a text editor and paste your Apps Script URL into the APPS_SCRIPT_URL variable at the top of the script.');
 } else {
-  loadData();
+  setTimeout(() => document.getElementById('pw-input').focus(), 100);
 }
 </script>
 </body>
